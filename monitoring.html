@@ -737,6 +737,7 @@
           renderMonitoringTable();
 
           alert("Login berhasil. Selamat datang, " + (result.nama_jaksa || "Jaksa") + ".");
+          if (window.__sikordaPendingDeepLink) applyDeepLink();
         } else {
           alert(result.message || "Username / NIP atau password salah.");
         }
@@ -753,6 +754,75 @@
       }
     }
 
+    /* ============================================================
+       TAUTAN LANGSUNG KE PERKARA (dari WhatsApp / SIAP PIDUM)
+       monitoring.html?perkara=PIDUM-MUNA-2026-0005&q=KADARMAN
+       ============================================================ */
+    function sikordaNormalize(value) {
+      return String(value || "").toLowerCase().replace(/[.,]/g, "").replace(/\s+/g, " ").trim();
+    }
+
+    function showDeepLinkBanner(html, tone) {
+      let banner = document.getElementById("deepLinkBanner");
+      const tools = document.querySelector(".monitoring-tools");
+      if (!banner && tools) {
+        banner = document.createElement("div");
+        banner.id = "deepLinkBanner";
+        tools.parentNode.insertBefore(banner, tools);
+      }
+      if (!banner) return;
+      banner.style.cssText = "margin:0 0 14px;padding:12px 16px;border-radius:10px;font-size:14px;line-height:1.5;" +
+        (tone === "warn"
+          ? "background:#fff7e6;border:1px solid #f0d49b;color:#7a5520;"
+          : "background:#eef5fd;border:1px solid #cfe0f6;color:#1d4f91;");
+      banner.innerHTML = html;
+    }
+
+    function applyDeepLink() {
+      const params = new URLSearchParams(window.location.search);
+      const perkara = (params.get("perkara") || "").trim();
+      const q = (params.get("q") || "").trim();
+      if (!perkara && !q) return;
+
+      const target = sikordaNormalize(q);
+      const matches = monitoringData.filter(function (item) {
+        if (perkara && String(item.id_perkara_pidum || "").trim() === perkara) return true;
+        return target && sikordaNormalize(item.nama_tersangka) === target;
+      });
+      const label = q || perkara;
+
+      if (!matches.length) {
+        window.__sikordaPendingDeepLink = false;
+        showDeepLinkBanner("<strong>Perkara a.n. " + escapeHtml(label) + "</strong><br>" +
+          "Belum ada permohonan koordinasi dari penyidik untuk perkara ini. Daftar di bawah telah difilter; " +
+          "koordinasi dapat dilakukan langsung dengan menghubungi penyidik.", "warn");
+        return;
+      }
+
+      // Pastikan baris perkara terlihat di tabel
+      const searchBox = document.getElementById("searchBox");
+      const latest = matches[matches.length - 1] === matches[0] ? matches[0] : matches.reduce(function (a, b) {
+        return String(a.timestamp) > String(b.timestamp) ? a : b;
+      });
+      if (searchBox && latest.nama_tersangka) searchBox.value = latest.nama_tersangka;
+      renderMonitoringTable();
+
+      const isLoggedIn = sessionStorage.getItem("isJaksaLoggedIn") === "true";
+      if (!isLoggedIn) {
+        window.__sikordaPendingDeepLink = true;
+        showDeepLinkBanner("<strong>Perkara a.n. " + escapeHtml(latest.nama_tersangka || label) + "</strong> · ID " +
+          escapeHtml(latest.id_permohonan || "-") + "<br>Silakan login sebagai Jaksa untuk membuka detail permohonan koordinasi.");
+        openLogin();
+        return;
+      }
+
+      window.__sikordaPendingDeepLink = false;
+      showDeepLinkBanner("<strong>Perkara a.n. " + escapeHtml(latest.nama_tersangka || label) + "</strong> · ID " +
+        escapeHtml(latest.id_permohonan || "-") + (matches.length > 1 ? " · " + matches.length + " permohonan" : ""));
+      const index = filteredMonitoringData.indexOf(latest);
+      if (index >= 0) openDetailPermohonan(index);
+    }
+
     async function loadMonitoringData() {
       const body = document.getElementById("monitorBody");
 
@@ -766,6 +836,7 @@
 
         monitoringData = Array.isArray(result.data) ? result.data : [];
         renderMonitoringTable();
+        applyDeepLink();
 
       } catch (error) {
         console.error(error);
