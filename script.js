@@ -122,7 +122,8 @@ function validateForm(data) {
   if (!data.dimohon) addError("dimohon[]", "Minimal satu permohonan kepada Jaksa wajib dipilih.");
   if (!data.dokumen) addError("dokumen[]", "Minimal satu dokumen pendukung wajib dipilih.");
   if (!data.cara_koordinasi) addError("cara_koordinasi", "Cara koordinasi wajib dipilih.");
-  if (!data.nomor_hp) addError("nomor_hp", "Nomor HP Penyidik wajib diisi.");
+  if (!data.nomor_hp) addError("nomor_hp", "Nomor HP/WhatsApp Penyidik wajib diisi.");
+  else if (!/^(\+62|62|0)8[0-9]{7,12}$/.test(String(data.nomor_hp).replace(/[\s-]/g, ""))) addError("nomor_hp", "Format nomor HP/WhatsApp tidak valid. Contoh: 081234567890.");
 
 const fileResumeInput = document.getElementById("fileResume");
 const filePendukungInput = document.getElementById("filePendukung");
