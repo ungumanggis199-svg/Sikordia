@@ -102,6 +102,11 @@
   <label>Jabatan Penyidik</label>
   <input type="text" name="jabatan_penyidik" placeholder="Contoh: Kanit Reskrim" />
 </div>
+<div class="input-group">
+  <label for="nomor_hp">Nomor HP / WhatsApp Penyidik <span style="color:#ff6b6b">*</span></label>
+  <input type="tel" id="nomor_hp" name="nomor_hp" inputmode="tel" autocomplete="tel" pattern="^(\+62|62|0)8[0-9\s]{7,15}$" placeholder="Contoh: 081234567890" required />
+  <small style="display:block;margin-top:6px;opacity:.75">Nomor aktif WhatsApp — dipakai Jaksa untuk menghubungi Anda terkait koordinasi.</small>
+</div>
           <div class="input-group">
             <label for="nama_satuan">Nama Satuan</label>
             <input 
@@ -394,20 +399,7 @@
         </div>
       </fieldset>
 
-      <!-- J. Nomor HP -->
-      <fieldset>
-        <legend>K. Kontak Penyidik</legend>
 
-        <div class="input-group">
-          <label for="nomor_hp">Nomor HP Penyidik</label>
-          <input 
-            type="tel" 
-            id="nomor_hp" 
-            name="nomor_hp" 
-            placeholder="Contoh: 0812xxxxxxx"
-          />
-        </div>
-      </fieldset>
 
       <button type="submit" class="btn-submit">Kirim Permohonan</button>
     </form>
