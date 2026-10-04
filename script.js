@@ -446,8 +446,11 @@ function loadJaksaList() {
       Array.isArray(result.data) &&
       result.data.length > 0
     ) {
-      result.data.forEach(function (nama) {
-        const namaJaksa = String(nama || "").trim();
+      result.data.forEach(function (item) {
+        // Backend mengirim objek {nama, nip, pangkat, jabatan}; versi lama menganggapnya teks
+        // sehingga muncul "[object Object]" dan pangkat/NIP/jabatan jaksa tidak terisi.
+        const isObject = item && typeof item === "object";
+        const namaJaksa = String(isObject ? item.nama : item || "").trim();
 
         if (!namaJaksa) {
           return;
@@ -456,9 +459,20 @@ function loadJaksaList() {
         const option = document.createElement("option");
         option.value = namaJaksa;
         option.textContent = namaJaksa;
+        if (isObject) {
+          option.dataset.nip = item.nip || "";
+          option.dataset.pangkat = item.pangkat || "";
+          option.dataset.jabatan = item.jabatan || "";
+        }
 
         select.appendChild(option);
       });
+
+      if (!select.dataset.boundJaksa) {
+        select.dataset.boundJaksa = "1";
+        select.addEventListener("change", fillJaksaDetail);
+      }
+      applyPrefillJaksa(select);
 
     } else {
       const message =
@@ -514,100 +528,47 @@ function loadJaksaList() {
     });
   });
 
-  // Login form submit
+  // Login form submit (V2: satu handler saja — versi lama mendaftarkan handler berulang)
   const loginForm = document.getElementById("loginForm");
   if (loginForm) {
-    loginForm.addEventListener("submit", function (e) {
+    loginForm.addEventListener("submit", async function (e) {
       e.preventDefault();
       const username = this.username.value.trim();
       const password = this.password.value.trim();
-
-      // Demo login validation (replace with server-side validation)
-const loginForm = document.getElementById("loginForm");
-
-if (loginForm) {
-  loginForm.addEventListener("submit", async function (e) {
-    e.preventDefault();
-
-    const username = this.username.value.trim();
-    const password = this.password.value.trim();
-    const submitBtn = this.querySelector(".btn-submit");
-
-    if (!username || !password) {
-      alert("Nomor NIP dan password wajib diisi.");
-      return;
-    }
-
-    try {
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = "Memeriksa...";
+      const submitBtn = this.querySelector(".btn-submit");
+      if (!username || !password) {
+        alert("Nomor NIP dan password wajib diisi.");
+        return;
       }
-
-      const clientToken =
-        "LOGIN-" + Date.now() + "-" + Math.random().toString(36).slice(2);
-
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8"
-        },
-        body: JSON.stringify({
-          action: "validate_login",
-          username: username,
-          password: password,
-          client_token: clientToken
-        })
-      });
-
-      const result = await sikordaWaitResult("login_result", clientToken);
-
-      if (result.status === "success") {
-        sessionStorage.setItem("isJaksaLoggedIn", "true");
-        sessionStorage.setItem("jaksaName", result.nama_jaksa || username);
-        sessionStorage.setItem("jaksaUsername", username);
-        sessionStorage.setItem("jaksaSessionToken", result.session_token);
-
-        alert("Login berhasil. Selamat datang, " + (result.nama_jaksa || "Jaksa") + ".");
-
-        closeLogin();
-        unlockJaksaData();
-        updateLoginButton();
-
-        if (typeof applyNamePrivacy === "function") {
-          applyNamePrivacy();
+      try {
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Memeriksa..."; }
+        const clientToken = "LOGIN-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "validate_login", username: username, password: password, client_token: clientToken })
+        });
+        const result = await sikordaWaitResult("login_result", clientToken);
+        if (result.status === "success") {
+          sessionStorage.setItem("isJaksaLoggedIn", "true");
+          sessionStorage.setItem("jaksaName", result.nama_jaksa || username);
+          sessionStorage.setItem("jaksaUsername", username);
+          sessionStorage.setItem("jaksaSessionToken", result.session_token);
+          alert("Login berhasil. Selamat datang, " + (result.nama_jaksa || "Jaksa") + ".");
+          closeLogin();
+          unlockJaksaData();
+          updateLoginButton();
+          if (typeof applyNamePrivacy === "function") applyNamePrivacy();
+          if (typeof renderMonitoringTable === "function") renderMonitoringTable();
+        } else {
+          alert(result.message || "Nomor NIP atau password salah.");
         }
-
-        if (typeof renderMonitoringTable === "function") {
-          renderMonitoringTable();
-        }
-
-      } else {
-        alert(result.message || "Nomor NIP atau password salah.");
-      }
-
-    } catch (error) {
-      console.error(error);
-      alert("Login gagal. Silakan coba lagi.");
-
-    } finally {
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Masuk";
-      }
-    }
-  });
-}
-
-      if (username === DEMO_USER && password === DEMO_PASS) {
-        sessionStorage.setItem("isJaksaLoggedIn", "true");
-        alert("Login berhasil. Selamat datang, Jaksa.");
-        closeLogin();
-        unlockJaksaData();
-        updateLoginButton();
-      } else {
-        alert("Username atau password salah.");
+      } catch (error) {
+        console.error(error);
+        alert("Login gagal. Silakan coba lagi.");
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Masuk"; }
       }
     });
   }
@@ -627,22 +588,12 @@ if (formPermohonan) {
       const formData = new FormData(this);
       const data = {};
 
-      [
-        "nama_penyidik",
-        "nama_satuan",
-        "nomor_lp",
-        "nomor_spdp",
-        "nama_tersangka",
-        "pasal",
-        "jaksa_peneliti",
-        "jenis_koordinasi",
-        "urgensi",
-        "kronologi",
-        "cara_koordinasi",
-        "nomor_hp"
-      ].forEach(key => {
-        data[key] = (formData.get(key) || "").trim();
-      });
+      // V2: kirim SEMUA field isian tunggal (versi lama hanya 12 field, sehingga pangkat/NRP penyidik,
+      // tanggal SPDP, identitas tersangka, dan data jaksa tidak pernah tersimpan).
+      for (const [key, value] of formData.entries()) {
+        if (key.endsWith("[]") || value instanceof File) continue;
+        data[key] = String(value || "").trim();
+      }
 
       data["permasalahan"] = formData
         .getAll("permasalahan[]")
@@ -706,8 +657,11 @@ if (
 
       if (result.status === "success") {
         showSuccessPage(result.id_permohonan, result.file_url);
+        addReturnToPidumButton();
         this.reset();
         resetPermasalahan();
+        const hiddenPerkara = this.querySelector('input[name="id_perkara_pidum"]');
+        if (hiddenPerkara) hiddenPerkara.value = getSikordaPrefill().id_perkara_pidum || "";
         clearFormErrors();
       } else {
         showSuccessPage("ID sedang diproses. Silakan cek spreadsheet atau monitoring.", "");
@@ -844,3 +798,135 @@ function addFileError(input, message) {
 
   uploadBox.appendChild(errorElement);
 }
+
+
+/* ============================================================
+   INTEGRASI SIAP PIDUM (V2)
+   Form permohonan dapat dibuka dari SIAP PIDUM dengan parameter URL,
+   contoh: Form/permohonan.html?src=siap-pidum&id_perkara_pidum=PIDUM-MUNA-2026-0005
+           &nama_penyidik=...&nomor_spdp=...&nama_tersangka=...&return_url=...
+   ============================================================ */
+const SIKORDA_PREFILL_KEYS = [
+  "id_perkara_pidum", "nama_penyidik", "pangkat_penyidik", "nrp_penyidik", "jabatan_penyidik",
+  "nama_satuan", "nomor_lp", "nomor_spdp", "tanggal_spdp", "nama_tersangka", "tempat_lahir_tersangka",
+  "tgl_lahir_tersangka", "kelamin_tersangka", "agama_tersangka", "pekerjaan_tersangka", "alamat_tersangka",
+  "pasal", "nomor_hp", "kronologi", "jaksa_peneliti"
+];
+
+function getSikordaPrefill() {
+  const params = new URLSearchParams(window.location.search);
+  const data = {};
+  SIKORDA_PREFILL_KEYS.forEach(function (key) {
+    const value = params.get(key);
+    if (value) data[key] = value;
+  });
+  data.src = params.get("src") || "";
+  data.return_url = params.get("return_url") || "";
+  return data;
+}
+
+function fillJaksaDetail() {
+  const select = document.getElementById("jaksa_peneliti");
+  if (!select) return;
+  const option = select.selectedOptions && select.selectedOptions[0];
+  const set = function (id, value) {
+    const input = document.getElementById(id);
+    if (input) input.value = value || "";
+  };
+  set("pangkat_jaksa", option ? option.dataset.pangkat : "");
+  set("nip_jaksa", option ? option.dataset.nip : "");
+  set("jabatan_jaksa", option ? option.dataset.jabatan : "");
+}
+
+function normalizeNama(value) {
+  return String(value || "").toLowerCase().replace(/[.,]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function applyPrefillJaksa(select) {
+  const prefill = getSikordaPrefill();
+  if (!prefill.jaksa_peneliti || !select) return;
+  const target = normalizeNama(prefill.jaksa_peneliti);
+  const match = Array.from(select.options).find(function (option) {
+    return option.value && normalizeNama(option.value) === target;
+  });
+  if (match) {
+    select.value = match.value;
+    fillJaksaDetail();
+  }
+}
+
+function applySikordaPrefill() {
+  const form = document.getElementById("formPermohonan");
+  if (!form) return;
+  const prefill = getSikordaPrefill();
+
+  // Field tersembunyi penghubung ke perkara SIAP PIDUM
+  let hidden = form.querySelector('input[name="id_perkara_pidum"]');
+  if (!hidden) {
+    hidden = document.createElement("input");
+    hidden.type = "hidden";
+    hidden.name = "id_perkara_pidum";
+    form.appendChild(hidden);
+  }
+  hidden.value = prefill.id_perkara_pidum || "";
+
+  let filled = 0;
+  SIKORDA_PREFILL_KEYS.forEach(function (key) {
+    if (key === "id_perkara_pidum" || key === "jaksa_peneliti" || !prefill[key]) return;
+    const field = form.querySelector('[name="' + key + '"]');
+    if (!field || field.type === "file") return;
+    if (field.tagName === "SELECT") {
+      const option = Array.from(field.options).find(function (opt) {
+        return normalizeNama(opt.value) === normalizeNama(prefill[key]);
+      });
+      if (option) { field.value = option.value; filled += 1; }
+      return;
+    }
+    if (field.type === "date") {
+      const match = String(prefill[key]).match(/^(\d{4}-\d{2}-\d{2})/);
+      if (!match) return;
+      field.value = match[1];
+    } else {
+      field.value = prefill[key];
+    }
+    filled += 1;
+  });
+
+  if (prefill.src === "siap-pidum") {
+    const banner = document.createElement("div");
+    banner.className = "info-box";
+    banner.style.marginBottom = "18px";
+    banner.style.borderLeft = "4px solid #c9a24b";
+    banner.innerHTML =
+      "<strong>Terhubung dengan SIAP PIDUM</strong>" +
+      "<p>" + filled + " kolom diisi otomatis dari perkara <b>" +
+      escapeSikordaHtml(prefill.id_perkara_pidum || "-") +
+      "</b>. Periksa kembali, lalu lengkapi bagian permasalahan, kronologi, dan dokumen.</p>";
+    form.insertBefore(banner, form.firstChild);
+  }
+}
+
+function escapeSikordaHtml(value) {
+  return String(value || "").replace(/[&<>"']/g, function (char) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char];
+  });
+}
+
+function addReturnToPidumButton() {
+  const prefill = getSikordaPrefill();
+  const successPage = document.getElementById("successPage");
+  if (!prefill.return_url || !successPage || successPage.querySelector(".btn-back-pidum")) return;
+  let url;
+  try { url = new URL(prefill.return_url); } catch (error) { return; }
+  if (url.protocol !== "https:" && url.hostname !== "localhost") return;
+  const link = document.createElement("a");
+  link.href = url.toString();
+  link.className = "btn-primary btn-back-pidum";
+  link.style.display = "inline-block";
+  link.style.marginTop = "14px";
+  link.textContent = "Kembali ke SIAP PIDUM";
+  const card = successPage.querySelector(".success-card") || successPage;
+  card.appendChild(link);
+}
+
+document.addEventListener("DOMContentLoaded", applySikordaPrefill);
