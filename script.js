@@ -109,7 +109,7 @@ function validateForm(data) {
    if (!data.nama_penyidik) addError("nama_penyidik", "Nama Penyidik wajib diisi.");
    if (!data.nama_satuan) addError("nama_satuan", "Nama Satuan wajib diisi.");
   if (!data.nomor_lp) addError("nomor_lp", "Nomor Laporan Polisi wajib diisi.");
-  if (!data.nomor_spdp) addError("nomor_spdp", "Nomor SPDP wajib diisi.");
+  // Nomor SPDP opsional: koordinasi boleh diajukan pada tahap penyelidikan (sebelum SPDP terbit)
   if (!data.nama_tersangka) addError("nama_tersangka", "Nama Tersangka wajib diisi.");
   if (!data.pasal) addError("pasal", "Pasal yang disangkakan wajib diisi.");
   if (!data.jaksa_peneliti) addError("jaksa_peneliti", "Jaksa Peneliti wajib diisi.");
@@ -821,6 +821,7 @@ function getSikordaPrefill() {
     if (value) data[key] = value;
   });
   data.src = params.get("src") || "";
+  data.mode = params.get("mode") || "";
   data.return_url = params.get("return_url") || "";
   return data;
 }
@@ -892,6 +893,11 @@ function applySikordaPrefill() {
     filled += 1;
   });
 
+  if (prefill.mode === "pra-spdp") {
+    const radio = form.querySelector('input[name="jenis_koordinasi"][value="Konsultasi tahap penyelidikan (sebelum SPDP)"]');
+    if (radio) radio.checked = true;
+  }
+
   if (prefill.src === "siap-pidum") {
     const banner = document.createElement("div");
     banner.className = "info-box";
@@ -899,9 +905,12 @@ function applySikordaPrefill() {
     banner.style.borderLeft = "4px solid #c9a24b";
     banner.innerHTML =
       "<strong>Terhubung dengan SIAP PIDUM</strong>" +
-      "<p>" + filled + " kolom diisi otomatis dari perkara <b>" +
-      escapeSikordaHtml(prefill.id_perkara_pidum || "-") +
-      "</b>. Periksa kembali, lalu lengkapi bagian permasalahan, kronologi, dan dokumen.</p>";
+      (prefill.mode === "pra-spdp"
+        ? "<p>Koordinasi <b>sebelum SPDP</b>. Nama dan satuan penyidik terisi otomatis; nomor SPDP boleh dikosongkan. " +
+          "Isi Nomor LP, nama tersangka/terlapor, dan pasal agar koordinasi otomatis terhubung saat SPDP dikirim.</p>"
+        : "<p>" + filled + " kolom diisi otomatis dari perkara <b>" +
+          escapeSikordaHtml(prefill.id_perkara_pidum || "-") +
+          "</b>. Periksa kembali, lalu lengkapi bagian permasalahan, kronologi, dan dokumen.</p>");
     form.insertBefore(banner, form.firstChild);
   }
 }
