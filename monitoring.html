@@ -581,6 +581,9 @@
       const loginForm = document.getElementById("loginForm");
 
       if (searchBox) {
+        // Tautan dari WhatsApp/SIAP PIDUM: monitoring.html?q=<nama tersangka / ID / SPDP>
+        const presetQuery = new URLSearchParams(window.location.search).get("q");
+        if (presetQuery) searchBox.value = presetQuery;
         searchBox.addEventListener("input", renderMonitoringTable);
       }
 
